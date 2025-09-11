@@ -1,0 +1,271 @@
+---
+title: "Coffee Analysis"
+author: "Kenna McQueen"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+  pdf_document:
+    toc: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r global_options, echo=FALSE}
+knitr::opts_chunk$set(fig.height=3, fig.width=4, echo=FALSE, fig.width=8, fig.height=5, warning=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60))
+```
+
+
+```{r message=FALSE}
+#Importing needed functions
+library(tidyverse)
+library(kableExtra)
+library(ggplot2)
+```
+
+
+# **Introduction**
+This report follows different coffee in its growth, processing, and taste scores. The data for this report comes from [The Coffee
+Institute](https://database.coffeeinstitute.org/) which was scraped,
+cleaned, and uploaded onto [the CORGIS Dataset
+Project](https://corgis-edu.github.io/corgis/csv/coffee/). This data was chosen because of an interest in trying different types of coffee. Investigations under this report will follow various factors within their influence on the taste scores of the coffee.
+
+![](https://fullcoffeeroast.com/wp-content/uploads/2020/12/Depositphotos_57962491_xl-2015-2048x1365.jpg)
+*(Espresso Beans vs Coffee Beans: What’s The Difference?, O'Connor)*
+
+# **Data Preparation**
+
+I downloaded a file provided by
+[CORGIS](https://corgis-edu.github.io/corgis/csv/coffee/) called
+"coffee.csv" and read this file into R as a tibble. To prepare the data, the names of all of the variables that were used were shortened. Data within the variable "Owner" was formatted to fit proper capitalization. Two additional values were also created. The variable "Altitude.Exists" was created based on if the average altitude is zero or not and the variable "Difference" was created based on the absolute difference of the sweetness score and acidity score. "Processing.Method" and
+"Variety" have unknown values that, within the data, are referred to as 'nan'. The total number of observations is 989.
+
+```{r, message=FALSE}
+#Read in the dataset.
+coffee<-read_csv("coffee.csv")
+
+#Create vector of new variable names.
+variables=c("Owner", "Average.Altitude", "Species", "Variety", "Processing.Method", "Flavor.Score", "Balance.Score", "Total.Score")
+
+#Vector of old variable names.
+var=c("Data.Owner", "Location.Altitude.Average", "Data.Type.Species", "Data.Type.Variety", "Data.Type.Processing method", "Data.Scores.Flavor", "Data.Scores.Balance", "Data.Scores.Total")
+
+#Goes through the used, existing variables and replaces the old variable name, with a new/shorter name.
+for (i in 1:8) {
+  names(coffee)[which(names(coffee) == var[i])] <- variables[i]
+}
+
+#Formatting the string variable "Owner" to have proper capitalization.
+coffee$Owner<-str_to_title(coffee$Owner)
+
+#Creating a new variable based on if there is an actual average altitude or not.
+for (i in 1:989){
+  if (coffee$Average.Altitude[i]==0){
+    coffee$Altitude.Exists[i]="Zero Altitude"
+  }
+  else{
+    coffee$Altitude.Exists[i]="Non-Zero Altitude"
+  }
+}
+
+#Create another new variable of the difference between acidity score and sweetness score
+coffee$Difference<-abs(coffee$Data.Scores.Sweetness-coffee$Data.Scores.Acidity)
+
+#Add the two new variables to the vector of variables being used.
+variables<-c(variables, "Altitude.Exists", "Difference")
+```
+
+
+# **Variable Descriptions**
+
+```{r}
+#Create a subset of the cleaned data with only the used variables.
+coffee_data=select(coffee, all_of(variables))
+
+write.csv(coffee_data, "coffee.data.csv", row.names = FALSE)
+
+#Prepare data for graphing with ggplot.
+geom_coffee<-ggplot(coffee_data)
+
+getwd()
+
+#Defines other vecotrs of the type of the variable and description of it.
+var_type=c("Character", "Integer", "Character", "Character", "Character", "Integer", "Integer", "Integer", "Character", "Integer")
+var_describe=c("The owner of the coffee.", "The average altitude of the farm the coffee was grown on.", "The species of the coffe", "The variety of the coffee.", "The processing method used on the coffee bean.", "The score on just the flavor of the coffee from a scale of 0 to 10.", "The score on the balance of the coffee from a scale of 0 to 10.", "The total, combined, score of the of the coffee based on flavor, sweetness, aroma, and 7 other factors on a scale of 0 to 100.", "If the average altitude is non-zero or not.", "The absolute difference between the sweetness score and acidity score.")
+
+#Binds the vectors together for the table.
+coffee_tbl<-cbind(variables, var_type, var_describe)
+
+#Creates the table.
+coffee_tbl<-kbl(coffee_tbl, col.names=c("Variable", "Type", "Description"), caption="Variables used in this report.")
+coffee_tbl<-kable_classic(coffee_tbl, lightable_options="striped", html_font="sans-serif")
+coffee_tbl <- row_spec(coffee_tbl, 0, bold = TRUE, color = "lightgrey", background = "#704214")
+
+#Outputs the table.
+coffee_tbl
+```
+
+```{r}
+#Creates a function that returns a nice table representing the proportions for my categorical variables in the univariate analysis to describe the distribution.
+categorical.tables<- function(variable, col='#704214', text.col="lightgrey", variable.col.name){
+  tbl<-round(prop.table(table(coffee_data[[variable]])),2)
+  cat.tbl<-kbl(tbl, col.names=c(variable.col.name, "Proportion"))
+  cat.tbl<-kable_classic(cat.tbl, lightable_options="striped", html_font="sans-serif")
+  cat.tbl<- row_spec(cat.tbl, 0, bold=TRUE, color= text.col, background=col)
+  return(cat.tbl)
+}
+```
+
+# **Univariate Analysis**
+
+### **Flavor Score**
+
+```{r}
+#Histogram of Flavor Scores
+geom_coffee+geom_histogram(aes(x=Flavor.Score), fill="#C19A6B", binwidth=.1)+theme_classic()+labs(x="Flavor Score", y="Frequency", title="Frequency of Flavor Scores")
+```
+
+The flavor score is largely grouped about the mean flavor score which is `r round(mean(coffee_data$Flavor.Score), 2)`. The standard deviation for this score is `r round(sd(coffee_data$Flavor.Score), 2)`. There is one main outlier that has a score of zero.
+
+### **Variety**
+
+```{r}
+#Barplot of variety of coffee.
+geom_coffee+geom_bar(aes(x=Variety), fill="#704214")+theme_classic()+theme(axis.text.x = element_text(angle = 45, hjust = 1))+labs(x="Variety of Coffee", y="Occurance", title="Occurances of Varieties of Coffee Used")
+
+```
+```{r results='hide'}
+#Table of the occurances of each variety.
+table(coffee_data$Variety)
+```
+```{r}
+categorical.tables("Variety", col="#C19A6B", text.col="black", variable.col.name = "Proportions of Variety of Coffee Used")
+```
+
+The most used variety of coffee in this data is `r names(which.max(prop.table(table(coffee_data$Variety))))` with `r round(max(prop.table(table(coffee_data$Variety))), 2)*100`% of the coffee being of this variety. That means that there is `r max(table(coffee_data$Variety))` counts of that variety. Additionally, the least used varieties, in this data, are Peaberry, Blue Mountain, Ruiru 11, Sumatra Lintong, Marigojipe, Pache Comun, and Sulawesi. The varieties each only had one occurrence in the data.
+
+### **Processing Method**
+
+```{r}
+#Barplot of processing methods used.
+geom_coffee+geom_bar(aes(x=Processing.Method), fill="#704214")+theme_classic()+theme(axis.text.x = element b_text(angle = 45, hjust = 1))+labs(x="Processing Method Used", y="Occurance", title="Occurances of Processing Methods Used")
+```
+```{r results='hide'}
+#Table of the occurances of each processing method.
+table(coffee_data$Processing.Method)
+```
+```{r}
+#Outputs a table of the proportions of processing methods
+categorical.tables("Processing.Method", col="#C19A6B", text.col="black", variable.col.name = "Proportions of Processing Method of Coffee Used")
+```
+
+The most used variety of coffee in this data is `r names(which.max(prop.table(table(coffee_data$Processing.Method))))` with `r round(max(prop.table(table(coffee_data$Processing.Method))), 2)*100`% of the coffee in the dataset being processed with this method. That means that there is `r max(table(coffee_data$Variety))` occurrences of that processing method. Additionally, the least used method, in this data, is pulped natural/honey with 7 occurrences.
+
+
+### **Total Score**
+
+```{r}
+#Histogram of total score of the coffee.
+geom_coffee+geom_histogram(aes(x=Total.Score), fill="#704214", binwidth=.75)+theme_classic()+labs(x="Total Score of Coffee", title="Distribution of Total Score of Coffee")
+```
+
+The mean total score is `r round(mean(coffee_data$Total.Score), 2)` on a scale of 0 to 100. The standard deviation of the flavor scores is `r round(sd(coffee_data$Total.Score), 2)`. The is an outlier that has a score of zero. Most of the Data however is grouped near the mean.
+
+# **Multivariate Analysis**
+
+### **Total Score Compared By Processing Method**
+
+```{r}
+#Boxplots of the total score grouped by processing methods.
+geom_coffee+geom_boxplot(aes(x=Total.Score, y=Processing.Method, fill=Processing.Method))+scale_fill_manual(values = c('#C19A6B', '#704214', '#C19A6B', '#704214', '#C19A6B', '#704214') )+labs(x="Total Score", y="Processing Methods", title="Total Score Distributions by Processing Methods")+guides(fill = "none")+theme_classic()
+```
+
+There is little difference of total scores by processing methods. For Natural/Dry processing the mean is `r round(mean(filter(coffee_data, Processing.Method=="Natural / Dry")$Total.Score), 2)` and for Pulped Natural/Honey, the mean is `r round(mean(filter(coffee_data, Processing.Method=="Pulped natural / honey")$Total.Score), 2)`. Semi-Washed and Semi-Pulped has a mean of `r round(mean(filter(coffee_data, Processing.Method=="Semi-washed / Semi-pulped")$Total.Score), 2)` while Washed/Wet has a mean of `r round(mean(filter(coffee_data, Processing.Method=="Washed / Wet")$Total.Score), 2)`.
+
+### **Difference in Sweetness and Acidity Scores Compared to Balance Scores**
+
+```{r}
+geom_coffee+geom_point(aes(x=Difference, y=Balance.Score), pch=20, col='#C19A6B')+theme_classic()+labs(x="Difference of Sweetness and Acidity Scores", y="Balance Score", title="Balance Score in Relation to the Difference of Sweetness and Acidity Score")
+```
+
+The correlation of the difference and balance score is `r round(cor(coffee_data$Difference, coffee_data$Balance.Score),2)` proving little correlation. A stronger negative correlation would be expected because a large difference in sweetness and acidity would mean less of a balance, however this is not strongly supported by the data.
+
+### **Flavor Scores Compared to Balance Scores by Species**
+
+```{r}
+#Create a scatterplot for the balance and flavor scores of the coffee by species.
+geom_coffee+geom_point(aes(x=Balance.Score, y=Flavor.Score, color=Species), pch=20)+theme_classic()+labs(x="Balance Score", y="Flavor Score", title="Balance Score in Relation to Flavor Score by Species")+ scale_color_manual(values = c('#C19A6B', '#704214') )
+
+#Creates subsets of the data based on the species of coffee.
+coffee_data$Species<- str_to_title(coffee_data$Species)
+arabica.species<-filter(coffee_data, Species=="Arabica")
+robusta.species<-filter(coffee_data, Species=="Robusta")
+```
+
+There is a correlation of `r round(cor(coffee_data$Balance.Score, coffee_data$Flavor.Score),2)` between balance and flavor score proving there is most likely a relationship between these two rankings. proving correlation between these two score rankings. This is understandable since a good flavor. The correlation for the two scores for just the Robusta Species is `r round(cor(robusta.species$Balance.Score, robusta.species$Flavor.Score), 2)` proving little correlation most likely because of the lack of data in addition to a single outlier. For just the Arabica Species is `r round(cor(arabica.species$Balance.Score, arabica.species$Flavor.Score), 2)` proving a strong relationship similar ot the ranking's relationship with both species.
+
+### **Average Altitude Compared to Total Score**
+
+```{r}
+#Scatterplot of the average altitude and total score.
+geom_coffee+geom_point(aes(x=Average.Altitude, y=Total.Score), col='#704214', pch=20)+theme_classic()+labs(x="Average Altitude", y="Total Score", title="Total Score in Relation to Average Altitude of Growth")
+```
+
+The correlation between average altitude and total score is `r round(cor(coffee_data$Total.Score, coffee_data$Average.Altitude),2)` proving little to no correlation.
+
+>**Since a large number of the average altitudes the coffee was grown on is zero, another analysis of the total score based on if the average altitude is zero or not was done and is shown below.** 
+
+```{r}
+#Graphing the distribution using grouped boxplots.
+geom_coffee+geom_boxplot(aes(x=Total.Score, y=Altitude.Exists, fill=Altitude.Exists))+scale_fill_manual(values = c('#C19A6B', '#704214') )+labs(x="Total Score", y="Altitude", title="Total Score Distributions by if There is an Altitude or Not")+guides(fill = "none")+ theme_classic()
+```
+
+The mean total score when the coffee was grown in a region with an altitude is `r round(mean(filter(coffee_data, Altitude.Exists=="Non-Zero Altitude")$Total.Score), 2)`. This doesn't differ enough from the mean total score with an altitude of zero, which is `r round(mean(filter(coffee_data, Altitude.Exists=="Zero Altitude")$Total.Score), 2)`, to claim a difference in score based on this growth factor.
+
+### **Total Scores Compared by Owner**
+
+```{r, fig.height=12}
+#For loop and if statements to collect the owner names that appear more than five times in the data.
+owner_table<-table(coffee_data$Owner)
+owner_names<-c()
+for (i in names(owner_table)){
+ if (owner_table[i]>5){
+  owner_names<-c(owner_names, i)
+  } 
+}
+
+#Creating a subset based on the owner names.
+owner_subset<- filter(coffee_data, Owner %in% owner_names)
+
+#Grouped boxplots of total scores based on owner of coffee.
+ggplot(owner_subset)+geom_boxplot(aes(x=Total.Score, y=Owner), fill='#C19A6B')+labs(x="Total Score", y="Processing Methods", title="Total Score Distributions by Processing Methods")+guides(fill = "none")+theme_classic()
+```
+```{r}
+#Calculates the mean total score by owner.
+owners_mean<- aggregate(Total.Score~Owner, data=owner_subset, mean)
+```
+
+For efficency, only coffee owners who had more than five occurances within the data were included. From these owners, Cqi Q Coffee Sample Representative had the highest mean total score with `r max(owners_mean$Total.Score)`.
+
+# **Reproducibility**
+
+I made sure my code had reasonable spacing and thorough commenting for
+each bit of code. I also ensured that nothing would require accessing my
+directories for loading in data or with the image.
+
+# **Choice Elements**
+
+In line code was used multiple times with the desctiption of each variable in my univariate analysis. A user-written function was made to create a table for the proportions of the categorical variables in my univariate analysis. An if statement was used to create a new variable based on if the average altitude was zero or not. Two new variables, one on if the altitude was zero or not and another on the difference in sweetness and acidity scores, were made during the data preparation. The string variable "Species" was formated to ensure that the capitalization was continuous in order to make subsets based on the variable in the analysis of flavor and balance scores. "Owner" was also formated to change the variable's data to have proper capitalization during data preparation. Additionally an if statement and for loop were used during the analysis for owners and total scores.
+
+# **Conclusion**
+
+The ratings of the coffee did not differ enough to prove a strong relationship between any factor and the scores of the coffee. The variables that were a factor into the taste of the coffee tended to have one major category that skewed any analysis of it. The taste ratings tended to be similar within each variable, excluding a few major outliers. I expected to find more difference between ratings in order to find true correlations. Therefore, the taste did not differ extremely based on any factors examined.
+
+# **References**
+
+Donald, Sam. “Coffee Csv File.” CORGIS Datasets Project, 28 Oct. 2022, corgis-edu.github.io/corgis/csv/coffee/. 
+
+Institute, Coffee Quality, and Eximware Inc. “Home - Q Coffee System.” Home - Q Coffee System, 2014, database.coffeeinstitute.org/. 
+
+O’Connor, Aisling. “Espresso Beans vs Coffee Beans: What’s the Difference?” Full Coffee Roast, 21 Aug. 2023, fullcoffeeroast.com/espresso-beans-vs-coffee-beans/. 
